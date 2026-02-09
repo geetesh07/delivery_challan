@@ -1,14 +1,15 @@
 app_name = "delivery_challan"
 app_title = "Delivery Challan"
 app_publisher = "nts"
-app_description = "Delivery Challan generation for app"
+app_description = "Delivery Challan generation for tracking material sent outside the company"
 app_email = "geetesh@ntechnosolution.com"
 app_license = "mit"
 
 # Apps
 # ------------------
 
-# required_apps = []
+# Required Apps (prodman should already be installed)
+# required_apps = ["prodman"]
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
