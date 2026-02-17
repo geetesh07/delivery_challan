@@ -1,0 +1,87 @@
+{%- from "templates/print_formats/standard_macros.html" import add_header,
+         add_letterhead, print_value -%}
+
+<div class="print-format-gutter">
+    {{ add_header(0, 1, doc, letter_head, no_letterhead) }}
+    
+    <div class="row">
+        <div class="col-xs-12 text-center">
+            <h2 style="margin-top: 0;">{{ _("Delivery Challan") }}</h2>
+            <h4 style="margin-top: 5px;">{{ doc.name }}</h4>
+        </div>
+    </div>
+    
+    <div class="row" style="margin-top: 20px;">
+        <div class="col-xs-6">
+            <div class="row">
+                <div class="col-xs-5 text-right"><label>{{ _("Date") }}</label></div>
+                <div class="col-xs-7">{{ frappe.utils.formatdate(doc.posting_date) }}</div>
+            </div>
+            <div class="row">
+                <div class="col-xs-5 text-right"><label>{{ _("Expected Return") }}</label></div>
+                <div class="col-xs-7">{{ frappe.utils.formatdate(doc.expected_return_date) if doc.expected_return_date else "-" }}</div>
+            </div>
+             <div class="row">
+                <div class="col-xs-5 text-right"><label>{{ _("Sender") }}</label></div>
+                <div class="col-xs-7">{{ doc.sender }}</div>
+            </div>
+        </div>
+        <div class="col-xs-6">
+             <div class="row">
+                <div class="col-xs-5 text-right"><label>{{ _("Supplier") }}</label></div>
+                <div class="col-xs-7"><b>{{ doc.supplier_name }}</b><br>{{ doc.supplier }}</div>
+            </div>
+             <div class="row">
+                <div class="col-xs-5 text-right"><label>{{ _("Source Warehouse") }}</label></div>
+                <div class="col-xs-7">{{ doc.from_warehouse }}</div>
+            </div>
+        </div>
+    </div>
+
+    <table class="table table-bordered table-condensed" style="margin-top: 20px;">
+        <thead>
+            <tr>
+                <th style="width: 50%;">{{ _("Item") }}</th>
+                <th style="width: 25%;" class="text-right">{{ _("Quantity") }}</th>
+                <th style="width: 25%;">{{ _("UOM") }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {%- for item in doc.items -%}
+            <tr>
+                <td>
+                    <b>{{ item.item_name }}</b><br>
+                    <small>{{ item.item_code }}</small><br>
+                    {% if item.description %}
+                    <div class="text-muted small">{{ item.description }}</div>
+                    {% endif %}
+                </td>
+                <td class="text-right">{{ item.qty }}</td>
+                <td>{{ item.uom }}</td>
+            </tr>
+            {%- endfor -%}
+        </tbody>
+    </table>
+    
+    {% if doc.remarks %}
+    <div class="row" style="margin-top: 20px;">
+        <div class="col-xs-12">
+            <label>{{ _("Remarks") }}</label>
+            <p>{{ doc.remarks }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row" style="margin-top: 60px;">
+        <div class="col-xs-6">
+            <div style="border-top: 1px solid #000; padding-top: 5px; width: 80%;">
+                <label>{{ _("Prepared By") }}</label>
+            </div>
+        </div>
+        <div class="col-xs-6 text-right">
+             <div style="border-top: 1px solid #000; padding-top: 5px; width: 80%; display: inline-block; text-align: left;">
+                <label>{{ _("Received By") }}</label>
+            </div>
+        </div>
+    </div>
+</div>

@@ -23,6 +23,23 @@
         "status_section",
         "status",
         "column_break_status",
+        {
+            "default": "__user",
+            "fieldname": "sender",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Sender",
+            "options": "User",
+            "reqd": 1
+        },
+        {
+            "fieldname": "expected_return_date",
+            "fieldtype": "Date",
+            "in_list_view": 1,
+            "label": "Expected Return Date"
+        },
+        "sender",
+        "expected_return_date",
         "sent_date",
         "received_date",
         "days_outside",

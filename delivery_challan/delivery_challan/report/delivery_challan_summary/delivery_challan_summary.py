@@ -86,6 +86,18 @@ def get_columns():
 			"width": 110
 		},
 		{
+			"label": _("Expected Return Date"),
+			"fieldname": "expected_return_date",
+			"fieldtype": "Date",
+			"width": 110
+		},
+		{
+			"label": _("Is Overdue"),
+			"fieldname": "is_overdue",
+			"fieldtype": "Data",
+			"width": 80
+		},
+		{
 			"label": _("Days Outside"),
 			"fieldname": "days_outside",
 			"fieldtype": "Int",
@@ -114,6 +126,7 @@ def get_data(filters):
 			dc.to_warehouse,
 			dc.sent_date,
 			dc.received_date,
+			dc.expected_return_date,
 			dc.days_outside,
 			(SELECT COUNT(*) FROM `tabDelivery Challan Item` dci WHERE dci.parent = dc.name) as total_items,
 			(SELECT SUM(dci.qty) FROM `tabDelivery Challan Item` dci WHERE dci.parent = dc.name) as total_qty
@@ -123,12 +136,19 @@ def get_data(filters):
 		ORDER BY dc.posting_date DESC, dc.name DESC
 	""".format(conditions=conditions), filters, as_dict=1)
 	
-	# Calculate current days for pending challans
+	# Calculate current days for pending challans and overdue status
 	for row in data:
-		if row.status in ["Sent", "Partially Received"] and row.sent_date:
-			row.current_days = date_diff(today(), getdate(row.sent_date))
+		if row.status in ["Sent", "Partially Received"]:
+			if row.sent_date:
+				row.current_days = date_diff(today(), getdate(row.sent_date))
+			
+			if row.expected_return_date and getdate(today()) > getdate(row.expected_return_date):
+				row.is_overdue = "Yes"
+			else:
+				row.is_overdue = "No"
 		else:
 			row.current_days = row.days_outside or 0
+			row.is_overdue = "No"
 	
 	return data
 
