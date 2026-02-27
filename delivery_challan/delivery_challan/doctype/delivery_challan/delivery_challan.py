@@ -1,10 +1,12 @@
 # Copyright (c) 2026, nts and contributors
 # For license information, please see license.txt
 
+import json
 import nts
 from nts import _
 from nts.model.document import Document
-from nts.utils import now_datetime, date_diff, getdate, today
+from nts.utils import now_datetime, date_diff, getdate, today, flt
+import traceback
 
 
 class DeliveryChallan(Document):
@@ -35,7 +37,6 @@ class DeliveryChallan(Document):
 			)
 			
 			if not warehouse:
-				# Try without company filter
 				warehouse = nts.db.get_value(
 					"Warehouse",
 					filters={
@@ -53,6 +54,7 @@ class DeliveryChallan(Document):
 
 	def on_submit(self):
 		self.create_outgoing_stock_entry()
+		self.detect_pending_operations()
 		self.update_status("Sent")
 		self.db_set("sent_date", now_datetime())
 
@@ -63,6 +65,95 @@ class DeliveryChallan(Document):
 	def update_status(self, status):
 		self.db_set("status", status)
 
+	# ─── Operation Detection ───────────────────────────────────────────
+
+	def detect_pending_operations(self):
+		"""For each item with a Work Order, detect the next pending operation and store it."""
+		# Group items by work order to avoid duplicate lookups
+		wo_cache = {}
+		
+		for item in self.items:
+			if not item.work_order:
+				continue
+			
+			if item.work_order not in wo_cache:
+				wo_cache[item.work_order] = self._get_next_pending_operation(item.work_order)
+			
+			op_info = wo_cache[item.work_order]
+			if op_info:
+				nts.db.set_value("Delivery Challan Item", item.name, {
+					"operation": op_info.get("operation"),
+					"operation_idx": op_info.get("idx"),
+					"operation_completed": 0
+				})
+		
+		if wo_cache:
+			ops_found = [v for v in wo_cache.values() if v]
+			if ops_found:
+				op_names = [o["operation"] for o in ops_found]
+				nts.msgprint(
+					_("Linked to pending operation(s): {0}").format(", ".join(op_names)),
+					indicator="blue"
+				)
+
+	def _get_next_pending_operation(self, work_order_name):
+		"""Find the next pending (incomplete) operation in a Work Order."""
+		try:
+			wo = nts.get_doc("Work Order", work_order_name)
+			if wo.docstatus != 1:
+				return None
+			
+			operations = wo.get("operations") or []
+			if not operations:
+				return None
+			
+			for idx, op_row in enumerate(operations):
+				completed_qty = flt(op_row.get("completed_qty") or 0)
+				
+				# Determine required qty for this operation
+				required_qty = flt(
+					op_row.get("operation_qty") or 
+					op_row.get("for_quantity") or 
+					op_row.get("qty") or 
+					op_row.get("required_qty") or 0
+				)
+				if required_qty <= 0:
+					required_qty = flt(wo.get("qty") or wo.get("production_qty") or 0)
+				
+				# Check if operation has pending work
+				if idx == 0:
+					pending = max(0.0, required_qty - completed_qty)
+				else:
+					prev_op = operations[idx - 1]
+					prev_completed = flt(prev_op.get("completed_qty") or 0)
+					# Read fresh from DB in case it was updated
+					try:
+						if prev_op.get("name"):
+							vals = nts.db.get_value(
+								"Work Order Operation", prev_op.get("name"),
+								["completed_qty"], as_dict=True
+							)
+							if vals:
+								prev_completed = flt(vals.get("completed_qty") or 0)
+					except Exception:
+						pass
+					pending = max(0.0, prev_completed - completed_qty)
+				
+				if pending > 0:
+					return {
+						"operation": op_row.get("operation") or "",
+						"idx": idx,
+						"pending_qty": pending,
+						"workstation": op_row.get("workstation") or ""
+					}
+			
+			return None
+		except Exception:
+			nts.log_error(traceback.format_exc(), "DC detect pending operation")
+			return None
+
+	# ─── Stock Entry Creation ──────────────────────────────────────────
+
 	def create_outgoing_stock_entry(self):
 		"""Create a Material Transfer stock entry from source to subcontracted warehouse"""
 		stock_entry = nts.new_doc("Stock Entry")
@@ -72,7 +163,6 @@ class DeliveryChallan(Document):
 		stock_entry.from_warehouse = self.from_warehouse
 		stock_entry.to_warehouse = self.to_warehouse
 		stock_entry.posting_date = today()
-		stock_entry.delivery_challan = self.name
 		stock_entry.remarks = _("Material sent via Delivery Challan {0}").format(self.name)
 		
 		for item in self.items:
@@ -94,65 +184,77 @@ class DeliveryChallan(Document):
 
 	def cancel_linked_stock_entries(self):
 		"""Cancel linked stock entries when challan is cancelled"""
-		for field in ["outgoing_stock_entry", "incoming_stock_entry"]:
-			stock_entry_name = self.get(field)
-			if stock_entry_name:
-				stock_entry = nts.get_doc("Stock Entry", stock_entry_name)
-				if stock_entry.docstatus == 1:
-					stock_entry.cancel()
-					nts.msgprint(_("Cancelled Stock Entry {0}").format(stock_entry_name))
-
-	@nts.whitelist()
-	def mark_as_received(self, items=None):
-		"""Mark material as received and create return stock entry"""
-		if self.status not in ["Sent", "Partially Received"]:
-			nts.throw(_("Can only mark as received when status is Sent or Partially Received"))
+		if self.outgoing_stock_entry:
+			try:
+				se = nts.get_doc("Stock Entry", self.outgoing_stock_entry)
+				if se.docstatus == 1:
+					se.cancel()
+					nts.msgprint(_("Cancelled Stock Entry {0}").format(self.outgoing_stock_entry))
+			except Exception:
+				nts.log_error(traceback.format_exc(), "DC cancel outgoing SE")
 		
 		if self.incoming_stock_entry:
-			nts.throw(_("Material has already been received. Stock Entry: {0}").format(
-				self.incoming_stock_entry
-			))
+			for se_name in self.incoming_stock_entry.split(","):
+				se_name = se_name.strip()
+				if se_name:
+					try:
+						se = nts.get_doc("Stock Entry", se_name)
+						if se.docstatus == 1:
+							se.cancel()
+							nts.msgprint(_("Cancelled Stock Entry {0}").format(se_name))
+					except Exception:
+						nts.log_error(traceback.format_exc(), "DC cancel incoming SE")
+
+	# ─── Receive Items (Partial) ───────────────────────────────────────
+
+	@nts.whitelist()
+	def receive_items(self, received_items):
+		"""Receive specific quantities of items (supports partial). Also completes linked operations."""
+		if self.status not in ["Sent", "Partially Received"]:
+			nts.throw(_("Can only receive items when status is Sent or Partially Received"))
 		
-		# Create return stock entry
-		self.create_incoming_stock_entry()
+		if isinstance(received_items, str):
+			received_items = json.loads(received_items)
 		
-		# Update items as received
-		for item in self.items:
-			nts.db.set_value("Delivery Challan Item", item.name, {
-				"qty_received": item.qty,
-				"is_received": 1
+		# Validate
+		items_to_receive = []
+		for entry in received_items:
+			row = nts.get_doc("Delivery Challan Item", entry.get("name"))
+			recv_qty = flt(entry.get("qty"))
+			pending = flt(row.qty) - flt(row.qty_received)
+			
+			if recv_qty <= 0:
+				continue
+			
+			if recv_qty > pending + 0.001:
+				nts.throw(_("Cannot receive {0} for {1}. Pending qty is {2}").format(
+					recv_qty, row.item_code, pending
+				))
+			
+			items_to_receive.append({
+				"row": row,
+				"recv_qty": recv_qty
 			})
 		
-		# Calculate days outside
-		days = 0
-		if self.sent_date:
-			days = date_diff(today(), getdate(self.sent_date))
+		if not items_to_receive:
+			nts.throw(_("Please enter quantities to receive"))
 		
-		self.db_set({
-			"status": "Received",
-			"received_date": now_datetime(),
-			"days_outside": days
-		})
-		
-		nts.msgprint(_("Material marked as received. Days outside: {0}").format(days))
-
-	def create_incoming_stock_entry(self):
-		"""Create a Material Transfer stock entry from subcontracted warehouse back to source"""
+		# Create return stock entry
 		stock_entry = nts.new_doc("Stock Entry")
 		stock_entry.stock_entry_type = "Material Transfer"
 		stock_entry.purpose = "Material Transfer"
 		stock_entry.company = self.company
-		stock_entry.from_warehouse = self.to_warehouse  # Reverse direction
+		stock_entry.from_warehouse = self.to_warehouse
 		stock_entry.to_warehouse = self.from_warehouse
 		stock_entry.posting_date = today()
-		stock_entry.delivery_challan = self.name
 		stock_entry.remarks = _("Material received back via Delivery Challan {0}").format(self.name)
 		
-		for item in self.items:
+		for entry in items_to_receive:
+			row = entry["row"]
 			stock_entry.append("items", {
-				"item_code": item.item_code,
-				"qty": item.qty,
-				"uom": item.uom,
+				"item_code": row.item_code,
+				"qty": entry["recv_qty"],
+				"uom": row.uom,
 				"s_warehouse": self.to_warehouse,
 				"t_warehouse": self.from_warehouse
 			})
@@ -160,14 +262,150 @@ class DeliveryChallan(Document):
 		stock_entry.insert()
 		stock_entry.submit()
 		
-		self.db_set("incoming_stock_entry", stock_entry.name)
-		nts.msgprint(_("Return Stock Entry {0} created").format(
-			nts.utils.get_link_to_form("Stock Entry", stock_entry.name)
-		))
+		# Update item received quantities
+		for entry in items_to_receive:
+			row = entry["row"]
+			new_received = flt(row.qty_received) + entry["recv_qty"]
+			is_fully_received = 1 if new_received >= flt(row.qty) else 0
+			nts.db.set_value("Delivery Challan Item", row.name, {
+				"qty_received": new_received,
+				"is_received": is_fully_received
+			})
+		
+		# Append to incoming stock entries list
+		existing = self.incoming_stock_entry or ""
+		if existing:
+			new_list = existing + ", " + stock_entry.name
+		else:
+			new_list = stock_entry.name
+		self.db_set("incoming_stock_entry", new_list)
+		
+		# Check if all items are fully received
+		self.reload()
+		all_received = all(flt(item.qty_received) >= flt(item.qty) for item in self.items)
+		
+		if all_received:
+			days = 0
+			if self.sent_date:
+				days = date_diff(today(), getdate(self.sent_date))
+			self.db_set({
+				"status": "Received",
+				"received_date": now_datetime(),
+				"days_outside": days
+			})
+			nts.msgprint(_("All items received. Days outside: {0}").format(days))
+			
+			# Complete linked operations for all items
+			self._complete_linked_operations()
+		else:
+			self.db_set("status", "Partially Received")
+			nts.msgprint(_("Partial receipt recorded. Stock Entry: {0}").format(
+				nts.utils.get_link_to_form("Stock Entry", stock_entry.name)
+			))
+		
+		return {"status": "success", "stock_entry": stock_entry.name}
+
+	# ─── Operation Completion ──────────────────────────────────────────
+
+	def _complete_linked_operations(self):
+		"""When all items are received, complete the linked WO operations via reporting app API."""
+		# Group by work order to complete each operation once
+		wo_ops = {}
+		for item in self.items:
+			if not item.work_order or not item.operation or item.operation_completed:
+				continue
+			
+			key = (item.work_order, item.operation_idx)
+			if key not in wo_ops:
+				wo_ops[key] = {
+					"work_order": item.work_order,
+					"operation": item.operation,
+					"operation_idx": item.operation_idx,
+					"item_names": []
+				}
+			wo_ops[key]["item_names"].append(item.name)
+		
+		if not wo_ops:
+			return
+		
+		# Get the current user as employee for reporting
+		employee_number = self._get_employee_number()
+		
+		for key, op_info in wo_ops.items():
+			try:
+				self._report_operation_complete(
+					work_order=op_info["work_order"],
+					operation=op_info["operation"],
+					operation_idx=op_info["operation_idx"],
+					employee_number=employee_number
+				)
+				
+				# Mark items as operation completed
+				for item_name in op_info["item_names"]:
+					nts.db.set_value("Delivery Challan Item", item_name, "operation_completed", 1)
+				
+				nts.msgprint(
+					_("Operation '{0}' completed for Work Order {1}").format(
+						op_info["operation"], op_info["work_order"]
+					),
+					indicator="green"
+				)
+			except Exception as e:
+				nts.log_error(traceback.format_exc(), "DC complete operation failed")
+				nts.msgprint(
+					_("Could not auto-complete operation '{0}' for WO {1}: {2}").format(
+						op_info["operation"], op_info["work_order"], str(e)
+					),
+					indicator="orange"
+				)
+
+	def _report_operation_complete(self, work_order, operation, operation_idx, employee_number):
+		"""Call the reporting app's report_operation API to complete the operation."""
+		try:
+			from reporting.reporting.api.work_order_ops import report_operation
+			
+			result = report_operation(
+				work_order=work_order,
+				op_index=operation_idx,
+				operation_name=operation,
+				employee_number=employee_number,
+				produced_qty=0,  # Will be calculated by the API based on pending
+				process_loss=0,
+				posting_datetime=now_datetime(),
+				rejection_reason=None,
+				_auto_complete=True
+			)
+			
+			if not result or not result.get("ok"):
+				msg = result.get("message", "Unknown error") if result else "No response"
+				nts.throw(_("Operation reporting failed: {0}").format(msg))
+			
+			return result
+		except ImportError:
+			# Reporting app not installed — skip gracefully
+			nts.msgprint(
+				_("Reporting app not available. Operation '{0}' not auto-completed. Please complete it manually.").format(operation),
+				indicator="yellow"
+			)
+			return None
+
+	def _get_employee_number(self):
+		"""Get the employee number for the current user."""
+		emp = nts.db.get_value(
+			"Employee",
+			{"user_id": nts.session.user},
+			["name", "employee_name", "employee_number"],
+			as_dict=True
+		)
+		if emp and emp.get("employee_number"):
+			return emp.get("employee_number")
+		if emp and emp.get("name"):
+			return emp.get("name")
+		return nts.session.user
+
 
 @nts.whitelist()
-def mark_as_received(name, items=None):
-	"""Whitelist method to mark delivery challan as received"""
+def receive_items(name, received_items):
+	"""Whitelist method for partial receiving"""
 	doc = nts.get_doc("Delivery Challan", name)
-	doc.mark_as_received(items)
-	return {"status": "success", "days_outside": doc.days_outside}
+	return doc.receive_items(received_items)

@@ -6,7 +6,6 @@
     "engine": "InnoDB",
     "field_order": [
         "item_code",
-        "item_name",
         "work_order",
         "production_item",
         "production_qty",
@@ -17,7 +16,11 @@
         "uom",
         "column_break_2",
         "qty_received",
-        "is_received"
+        "is_received",
+        "section_break_operation",
+        "operation",
+        "operation_idx",
+        "operation_completed"
     ],
     "fields": [
         {
@@ -99,6 +102,31 @@
             "fieldname": "is_received",
             "fieldtype": "Check",
             "label": "Is Received",
+            "read_only": 1
+        },
+        {
+            "collapsible": 1,
+            "fieldname": "section_break_operation",
+            "fieldtype": "Section Break",
+            "label": "Linked Operation"
+        },
+        {
+            "fieldname": "operation",
+            "fieldtype": "Data",
+            "label": "Operation",
+            "read_only": 1
+        },
+        {
+            "fieldname": "operation_idx",
+            "fieldtype": "Int",
+            "label": "Operation Index",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "operation_completed",
+            "fieldtype": "Check",
+            "label": "Operation Completed",
             "read_only": 1
         }
     ],

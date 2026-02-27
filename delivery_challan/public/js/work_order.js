@@ -4,12 +4,11 @@
 nts.ui.form.on("Work Order", {
     refresh: function (frm) {
         if (frm.doc.docstatus === 1 && frm.doc.status !== "Completed" && frm.doc.status !== "Closed") {
-            frm.add_custom_button(__("Delivery Challan"), function () {
+            frm.add_custom_button(__("Create DC"), function () {
                 nts.model.with_doctype("Delivery Challan", function () {
                     let dc = nts.model.get_new_doc("Delivery Challan");
                     dc.company = frm.doc.company;
 
-                    // Get required items
                     let items = [];
                     if (frm.doc.required_items && frm.doc.required_items.length > 0) {
                         frm.doc.required_items.forEach(item => {
@@ -28,7 +27,7 @@ nts.ui.form.on("Work Order", {
                     dc.items = items;
                     nts.set_route("Form", "Delivery Challan", dc.name);
                 });
-            }, __("Create"));
+            }).addClass("btn-primary");
         }
     }
 });

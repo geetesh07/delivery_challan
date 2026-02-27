@@ -1,85 +1,266 @@
 {%- from "templates/print_formats/standard_macros.html" import add_header,
-         add_letterhead, print_value -%}
+add_letterhead, print_value -%}
 
-<div class="print-format-gutter">
+<style>
+    .dc-print {
+        font-family: Arial, sans-serif;
+        font-size: 12px;
+    }
+
+    .dc-print h2 {
+        font-size: 20px;
+        font-weight: bold;
+        margin: 0;
+    }
+
+    .dc-print h4 {
+        font-size: 14px;
+        margin: 4px 0 0;
+        color: #555;
+    }
+
+    .dc-header {
+        border-bottom: 2px solid #333;
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+    }
+
+    .dc-meta {
+        margin-bottom: 15px;
+    }
+
+    .dc-meta table {
+        width: 100%;
+    }
+
+    .dc-meta td {
+        padding: 3px 8px;
+        vertical-align: top;
+    }
+
+    .dc-meta .label-col {
+        font-weight: bold;
+        width: 140px;
+        color: #333;
+    }
+
+    .dc-items {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+
+    .dc-items th {
+        background-color: #f5f5f5;
+        border: 1px solid #ccc;
+        padding: 6px 8px;
+        text-align: left;
+        font-weight: bold;
+        font-size: 11px;
+    }
+
+    .dc-items td {
+        border: 1px solid #ccc;
+        padding: 5px 8px;
+        font-size: 11px;
+    }
+
+    .dc-items .text-right {
+        text-align: right;
+    }
+
+    .dc-items .text-center {
+        text-align: center;
+    }
+
+    .dc-items tfoot td {
+        font-weight: bold;
+        background-color: #f9f9f9;
+    }
+
+    .dc-status {
+        margin-top: 15px;
+        padding: 8px 12px;
+        background: #f0f0f0;
+        border-radius: 4px;
+    }
+
+    .dc-status table {
+        width: 100%;
+    }
+
+    .dc-status td {
+        padding: 2px 8px;
+    }
+
+    .dc-signatures {
+        margin-top: 50px;
+    }
+
+    .dc-signatures .sig-block {
+        display: inline-block;
+        width: 45%;
+    }
+
+    .dc-signatures .sig-line {
+        border-top: 1px solid #333;
+        padding-top: 4px;
+        margin-top: 40px;
+        font-weight: bold;
+    }
+
+    .dc-terms {
+        margin-top: 20px;
+        padding: 8px;
+        border: 1px solid #ddd;
+        background: #fafafa;
+        font-size: 10px;
+    }
+</style>
+
+<div class="dc-print">
     {{ add_header(0, 1, doc, letter_head, no_letterhead) }}
-    
-    <div class="row">
-        <div class="col-xs-12 text-center">
-            <h2 style="margin-top: 0;">{{ _("Delivery Challan") }}</h2>
-            <h4 style="margin-top: 5px;">{{ doc.name }}</h4>
-        </div>
-    </div>
-    
-    <div class="row" style="margin-top: 20px;">
-        <div class="col-xs-6">
-            <div class="row">
-                <div class="col-xs-5 text-right"><label>{{ _("Date") }}</label></div>
-                <div class="col-xs-7">{{ frappe.utils.formatdate(doc.posting_date) }}</div>
-            </div>
-            <div class="row">
-                <div class="col-xs-5 text-right"><label>{{ _("Expected Return") }}</label></div>
-                <div class="col-xs-7">{{ frappe.utils.formatdate(doc.expected_return_date) if doc.expected_return_date else "-" }}</div>
-            </div>
-             <div class="row">
-                <div class="col-xs-5 text-right"><label>{{ _("Sender") }}</label></div>
-                <div class="col-xs-7">{{ doc.sender }}</div>
-            </div>
-        </div>
-        <div class="col-xs-6">
-             <div class="row">
-                <div class="col-xs-5 text-right"><label>{{ _("Supplier") }}</label></div>
-                <div class="col-xs-7"><b>{{ doc.supplier_name }}</b><br>{{ doc.supplier }}</div>
-            </div>
-             <div class="row">
-                <div class="col-xs-5 text-right"><label>{{ _("Source Warehouse") }}</label></div>
-                <div class="col-xs-7">{{ doc.from_warehouse }}</div>
-            </div>
-        </div>
+
+    <div class="dc-header text-center">
+        <h2>{{ _("DELIVERY CHALLAN") }}</h2>
+        <h4>{{ doc.name }}</h4>
     </div>
 
-    <table class="table table-bordered table-condensed" style="margin-top: 20px;">
+    <div class="dc-meta">
+        <table>
+            <tr>
+                <td style="width: 50%;">
+                    <table>
+                        <tr>
+                            <td class="label-col">{{ _("Supplier") }}</td>
+                            <td><b>{{ doc.supplier_name or doc.supplier }}</b></td>
+                        </tr>
+                        <tr>
+                            <td class="label-col">{{ _("Supplier ID") }}</td>
+                            <td>{{ doc.supplier }}</td>
+                        </tr>
+                        <tr>
+                            <td class="label-col">{{ _("From Warehouse") }}</td>
+                            <td>{{ doc.from_warehouse }}</td>
+                        </tr>
+                        <tr>
+                            <td class="label-col">{{ _("To Warehouse") }}</td>
+                            <td>{{ doc.to_warehouse }}</td>
+                        </tr>
+                    </table>
+                </td>
+                <td style="width: 50%;">
+                    <table>
+                        <tr>
+                            <td class="label-col">{{ _("Date") }}</td>
+                            <td>{{ nts.utils.formatdate(doc.posting_date) }}</td>
+                        </tr>
+                        <tr>
+                            <td class="label-col">{{ _("Expected Return") }}</td>
+                            <td>{{ nts.utils.formatdate(doc.expected_return_date) if doc.expected_return_date else
+                                "-" }}</td>
+                        </tr>
+                        <tr>
+                            <td class="label-col">{{ _("Sender") }}</td>
+                            <td>{{ doc.sender }}</td>
+                        </tr>
+                        <tr>
+                            <td class="label-col">{{ _("Status") }}</td>
+                            <td><b>{{ doc.status }}</b></td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <table class="dc-items">
         <thead>
             <tr>
-                <th style="width: 50%;">{{ _("Item") }}</th>
-                <th style="width: 25%;" class="text-right">{{ _("Quantity") }}</th>
-                <th style="width: 25%;">{{ _("UOM") }}</th>
+                <th class="text-center" style="width: 4%;">#</th>
+                <th style="width: 14%;">{{ _("RM Code") }}</th>
+                <th style="width: 12%;">{{ _("Work Order") }}</th>
+                <th style="width: 12%;">{{ _("Product Code") }}</th>
+                <th style="width: 12%;">{{ _("Operation") }}</th>
+                <th class="text-right" style="width: 9%;">{{ _("Product Qty") }}</th>
+                <th class="text-right" style="width: 9%;">{{ _("RM Qty") }}</th>
+                <th style="width: 7%;">{{ _("UOM") }}</th>
+                <th class="text-right" style="width: 9%;">{{ _("Received") }}</th>
             </tr>
         </thead>
         <tbody>
+            {%- set total_qty = {"value": 0} -%}
+            {%- set total_received = {"value": 0} -%}
             {%- for item in doc.items -%}
+            {%- set _ = total_qty.update({"value": total_qty.value + (item.qty or 0)}) -%}
+            {%- set _ = total_received.update({"value": total_received.value + (item.qty_received or 0)}) -%}
             <tr>
-                <td>
-                    <b>{{ item.item_code }}</b><br>
-                    {% if item.description %}
-                    <div class="text-muted small">{{ item.description }}</div>
-                    {% endif %}
+                <td class="text-center">{{ loop.index }}</td>
+                <td><b>{{ item.item_code }}</b>
+                    {% if item.description %}<br><span style="font-size: 10px; color: #666;">{{ item.description |
+                        truncate(60) }}</span>{% endif %}
                 </td>
+                <td>{{ item.work_order or "-" }}</td>
+                <td>{{ item.production_item or "-" }}</td>
+                <td>{{ item.operation or "-" }}</td>
+                <td class="text-right">{{ item.production_qty or "-" }}</td>
                 <td class="text-right">{{ item.qty }}</td>
                 <td>{{ item.uom }}</td>
+                <td class="text-right">{{ item.qty_received or 0 }}</td>
             </tr>
             {%- endfor -%}
         </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="6" class="text-right">{{ _("Totals") }}</td>
+                <td class="text-right">{{ total_qty.value }}</td>
+                <td></td>
+                <td class="text-right">{{ total_received.value }}</td>
+            </tr>
+        </tfoot>
     </table>
-    
-    {% if doc.remarks %}
-    <div class="row" style="margin-top: 20px;">
-        <div class="col-xs-12">
-            <label>{{ _("Remarks") }}</label>
-            <p>{{ doc.remarks }}</p>
-        </div>
+
+    {% if doc.status in ["Sent", "Partially Received", "Received"] %}
+    <div class="dc-status">
+        <table>
+            <tr>
+                <td><b>{{ _("Sent Date") }}:</b> {{ nts.utils.format_datetime(doc.sent_date) if doc.sent_date else
+                    "-" }}</td>
+                <td><b>{{ _("Received Date") }}:</b> {{ nts.utils.format_datetime(doc.received_date) if
+                    doc.received_date else "-" }}</td>
+                <td><b>{{ _("Days Outside") }}:</b> {{ doc.days_outside or "-" }}</td>
+            </tr>
+        </table>
     </div>
     {% endif %}
 
-    <div class="row" style="margin-top: 60px;">
-        <div class="col-xs-6">
-            <div style="border-top: 1px solid #000; padding-top: 5px; width: 80%;">
-                <label>{{ _("Prepared By") }}</label>
+    {% if doc.remarks %}
+    <div style="margin-top: 15px;">
+        <b>{{ _("Remarks") }}:</b>
+        <p style="margin: 4px 0;">{{ doc.remarks }}</p>
+    </div>
+    {% endif %}
+
+    <div class="dc-terms">
+        <b>{{ _("Terms & Conditions") }}:</b>
+        <ol style="margin: 4px 0; padding-left: 16px;">
+            <li>{{ _("Material is sent on returnable basis and remains the property of the sender.") }}</li>
+            <li>{{ _("Material must be returned in the same condition on or before the expected return date.") }}</li>
+            <li>{{ _("Any damage or loss must be reported immediately.") }}</li>
+        </ol>
+    </div>
+
+    <div class="dc-signatures">
+        <div class="sig-block">
+            <div class="sig-line">
+                {{ _("Prepared By") }}<br>
+                <span style="font-weight: normal; font-size: 10px;">{{ _("Date") }}: _______________</span>
             </div>
         </div>
-        <div class="col-xs-6 text-right">
-             <div style="border-top: 1px solid #000; padding-top: 5px; width: 80%; display: inline-block; text-align: left;">
-                <label>{{ _("Received By") }}</label>
+        <div class="sig-block" style="float: right; text-align: right;">
+            <div class="sig-line" style="text-align: left;">
+                {{ _("Received By") }}<br>
+                <span style="font-weight: normal; font-size: 10px;">{{ _("Date") }}: _______________</span>
             </div>
         </div>
     </div>

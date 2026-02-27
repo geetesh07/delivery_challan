@@ -11,44 +11,29 @@
         "naming_series",
         "supplier",
         "supplier_name",
+        "sender",
         "column_break_1",
         "posting_date",
         "company",
+        "expected_return_date",
         "section_break_warehouse",
         "from_warehouse",
         "column_break_wh",
         "to_warehouse",
         "items_section",
         "items",
-        "status_section",
+        "remarks_section",
+        "remarks",
+        "timeline_section",
         "status",
-        "column_break_status",
-        {
-            "default": "__user",
-            "fieldname": "sender",
-            "fieldtype": "Link",
-            "in_list_view": 1,
-            "label": "Sender",
-            "options": "User",
-            "reqd": 1
-        },
-        {
-            "fieldname": "expected_return_date",
-            "fieldtype": "Date",
-            "in_list_view": 1,
-            "label": "Expected Return Date"
-        },
-        "sender",
-        "expected_return_date",
         "sent_date",
+        "column_break_timeline",
         "received_date",
         "days_outside",
         "stock_entries_section",
         "outgoing_stock_entry",
         "column_break_se",
         "incoming_stock_entry",
-        "remarks_section",
-        "remarks",
         "amended_from"
     ],
     "fields": [
@@ -61,6 +46,7 @@
             "default": "DC-.YYYY.-",
             "fieldname": "naming_series",
             "fieldtype": "Select",
+            "hidden": 1,
             "label": "Series",
             "options": "DC-.YYYY.-",
             "print_hide": 1,
@@ -85,6 +71,14 @@
             "read_only": 1
         },
         {
+            "default": "__user",
+            "fieldname": "sender",
+            "fieldtype": "Link",
+            "label": "Sender",
+            "options": "User",
+            "reqd": 1
+        },
+        {
             "fieldname": "column_break_1",
             "fieldtype": "Column Break"
         },
@@ -104,6 +98,11 @@
             "options": "Company",
             "remember_last_selected_value": 1,
             "reqd": 1
+        },
+        {
+            "fieldname": "expected_return_date",
+            "fieldtype": "Date",
+            "label": "Expected Return Date"
         },
         {
             "fieldname": "section_break_warehouse",
@@ -145,9 +144,19 @@
         },
         {
             "collapsible": 1,
-            "fieldname": "status_section",
+            "fieldname": "remarks_section",
             "fieldtype": "Section Break",
-            "label": "Status"
+            "label": "Remarks"
+        },
+        {
+            "fieldname": "remarks",
+            "fieldtype": "Small Text",
+            "label": "Remarks"
+        },
+        {
+            "fieldname": "timeline_section",
+            "fieldtype": "Section Break",
+            "label": "Status & Timeline"
         },
         {
             "default": "Draft",
@@ -161,14 +170,14 @@
             "search_index": 1
         },
         {
-            "fieldname": "column_break_status",
-            "fieldtype": "Column Break"
-        },
-        {
             "fieldname": "sent_date",
             "fieldtype": "Datetime",
             "label": "Sent Date",
             "read_only": 1
+        },
+        {
+            "fieldname": "column_break_timeline",
+            "fieldtype": "Column Break"
         },
         {
             "fieldname": "received_date",
@@ -202,21 +211,9 @@
         },
         {
             "fieldname": "incoming_stock_entry",
-            "fieldtype": "Link",
-            "label": "Incoming Stock Entry",
-            "options": "Stock Entry",
-            "read_only": 1
-        },
-        {
-            "collapsible": 1,
-            "fieldname": "remarks_section",
-            "fieldtype": "Section Break",
-            "label": "Remarks"
-        },
-        {
-            "fieldname": "remarks",
             "fieldtype": "Small Text",
-            "label": "Remarks"
+            "label": "Incoming Stock Entries",
+            "read_only": 1
         },
         {
             "fieldname": "amended_from",
@@ -231,12 +228,7 @@
     "icon": "fa fa-truck",
     "index_web_pages_for_search": 1,
     "is_submittable": 1,
-    "links": [
-        {
-            "link_doctype": "Stock Entry",
-            "link_fieldname": "delivery_challan"
-        }
-    ],
+    "links": [],
     "modified": "2026-02-07 14:30:00.000000",
     "modified_by": "Administrator",
     "module": "Delivery Challan",
