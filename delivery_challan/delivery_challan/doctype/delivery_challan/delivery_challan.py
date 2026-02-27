@@ -165,7 +165,6 @@ class DeliveryChallan(Document):
 			nts.utils.get_link_to_form("Stock Entry", stock_entry.name)
 		))
 
-
 @nts.whitelist()
 def mark_as_received(name, items=None):
 	"""Whitelist method to mark delivery challan as received"""

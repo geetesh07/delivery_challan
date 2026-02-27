@@ -17,7 +17,6 @@ class DeliveryChallanItem(Document):
 		description: DF.TextEditor | None
 		is_received: DF.Check
 		item_code: DF.Link
-		item_name: DF.Data | None
 		parent: DF.Data
 		parentfield: DF.Data
 		parenttype: DF.Data

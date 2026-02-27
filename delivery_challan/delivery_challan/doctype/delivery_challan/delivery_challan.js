@@ -123,6 +123,61 @@ function set_subcontracted_warehouse(frm) {
 }
 
 nts.ui.form.on("Delivery Challan Item", {
+    work_order: function (frm, cdt, cdn) {
+        let row = locals[cdt][cdn];
+        if (row.work_order) {
+            nts.call({
+                method: "nts.client.get",
+                args: {
+                    doctype: "Work Order",
+                    name: row.work_order
+                },
+                callback: function (r) {
+                    if (r.message && r.message.required_items) {
+                        let required_items = r.message.required_items;
+                        if (required_items.length > 0) {
+                            // Set the first item in the current row
+                            let first_item = required_items[0];
+
+                            // Note: setting item_code will trigger its own fetch for item_name, uom, description
+                            nts.model.set_value(cdt, cdn, "item_code", first_item.item_code);
+                            nts.model.set_value(cdt, cdn, "qty", first_item.required_qty);
+
+                            // For the remaining items, add new rows
+                            for (let i = 1; i < required_items.length; i++) {
+                                let new_row = frm.add_child("items");
+                                new_row.work_order = row.work_order;
+                                new_row.item_code = required_items[i].item_code;
+                                new_row.qty = required_items[i].required_qty;
+
+                                // Manually trigger item_code fetch for the new row
+                                nts.call({
+                                    method: "nts.client.get_value",
+                                    args: {
+                                        doctype: "Item",
+                                        filters: { name: new_row.item_code },
+                                        fieldname: ["stock_uom", "description"]
+                                    },
+                                    callback: function (r2) {
+                                        if (r2.message) {
+                                            nts.model.set_value(new_row.doctype, new_row.name, "uom", r2.message.stock_uom);
+                                            nts.model.set_value(new_row.doctype, new_row.name, "description", r2.message.description);
+                                        }
+                                    }
+                                });
+                            }
+                            frm.refresh_field("items");
+                            nts.show_alert({
+                                message: __("Fetched {0} BOM items from Work Order {1}", [required_items.length, row.work_order]),
+                                indicator: "green"
+                            });
+                        }
+                    }
+                }
+            });
+        }
+    },
+
     item_code: function (frm, cdt, cdn) {
         let row = locals[cdt][cdn];
         if (row.item_code) {
@@ -131,11 +186,10 @@ nts.ui.form.on("Delivery Challan Item", {
                 args: {
                     doctype: "Item",
                     filters: { name: row.item_code },
-                    fieldname: ["item_name", "stock_uom", "description"]
+                    fieldname: ["stock_uom", "description"]
                 },
                 callback: function (r) {
                     if (r.message) {
-                        nts.model.set_value(cdt, cdn, "item_name", r.message.item_name);
                         nts.model.set_value(cdt, cdn, "uom", r.message.stock_uom);
                         nts.model.set_value(cdt, cdn, "description", r.message.description);
                     }

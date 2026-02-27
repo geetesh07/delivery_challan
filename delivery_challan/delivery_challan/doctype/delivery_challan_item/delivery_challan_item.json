@@ -1,99 +1,118 @@
 {
- "actions": [],
- "creation": "2026-02-07 14:30:00.000000",
- "doctype": "DocType",
- "editable_grid": 1,
- "engine": "InnoDB",
- "field_order": [
-  "item_code",
-  "item_name",
-  "column_break_1",
-  "description",
-  "section_break_qty",
-  "qty",
-  "uom",
-  "column_break_2",
-  "qty_received",
-  "is_received"
- ],
- "fields": [
-  {
-   "fieldname": "item_code",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Item Code",
-   "options": "Item",
-   "reqd": 1
-  },
-  {
-   "fetch_from": "item_code.item_name",
-   "fieldname": "item_name",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Item Name",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_1",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fetch_from": "item_code.description",
-   "fieldname": "description",
-   "fieldtype": "Text Editor",
-   "label": "Description"
-  },
-  {
-   "fieldname": "section_break_qty",
-   "fieldtype": "Section Break",
-   "label": "Quantity"
-  },
-  {
-   "fieldname": "qty",
-   "fieldtype": "Float",
-   "in_list_view": 1,
-   "label": "Qty",
-   "reqd": 1
-  },
-  {
-   "fetch_from": "item_code.stock_uom",
-   "fieldname": "uom",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "UOM",
-   "options": "UOM"
-  },
-  {
-   "fieldname": "column_break_2",
-   "fieldtype": "Column Break"
-  },
-  {
-   "default": "0",
-   "fieldname": "qty_received",
-   "fieldtype": "Float",
-   "in_list_view": 1,
-   "label": "Qty Received",
-   "read_only": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "is_received",
-   "fieldtype": "Check",
-   "label": "Is Received",
-   "read_only": 1
-  }
- ],
- "index_web_pages_for_search": 1,
- "istable": 1,
- "links": [],
- "modified": "2026-02-07 14:30:00.000000",
- "modified_by": "Administrator",
- "module": "Delivery Challan",
- "name": "Delivery Challan Item",
- "owner": "Administrator",
- "permissions": [],
- "sort_field": "modified",
- "sort_order": "DESC",
- "states": [],
- "track_changes": 1
+    "actions": [],
+    "creation": "2026-02-07 14:30:00.000000",
+    "doctype": "DocType",
+    "editable_grid": 1,
+    "engine": "InnoDB",
+    "field_order": [
+        "item_code",
+        "item_name",
+        "work_order",
+        "production_item",
+        "production_qty",
+        "column_break_1",
+        "description",
+        "section_break_qty",
+        "qty",
+        "uom",
+        "column_break_2",
+        "qty_received",
+        "is_received"
+    ],
+    "fields": [
+        {
+            "fieldname": "item_code",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "RM Code",
+            "options": "Item",
+            "reqd": 1
+        },
+        {
+            "fieldname": "work_order",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Work Order Reference",
+            "options": "Work Order"
+        },
+        {
+            "fetch_from": "work_order.production_item",
+            "fieldname": "production_item",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Product Code",
+            "options": "Item",
+            "read_only": 1
+        },
+        {
+            "fetch_from": "work_order.qty",
+            "fieldname": "production_qty",
+            "fieldtype": "Float",
+            "in_list_view": 1,
+            "label": "Product Qty",
+            "read_only": 1
+        },
+        {
+            "fieldname": "column_break_1",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fetch_from": "item_code.description",
+            "fieldname": "description",
+            "fieldtype": "Text Editor",
+            "label": "Description"
+        },
+        {
+            "fieldname": "section_break_qty",
+            "fieldtype": "Section Break",
+            "label": "Quantity"
+        },
+        {
+            "fieldname": "qty",
+            "fieldtype": "Float",
+            "in_list_view": 1,
+            "label": "RM Qty",
+            "reqd": 1
+        },
+        {
+            "fetch_from": "item_code.stock_uom",
+            "fieldname": "uom",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "UOM",
+            "options": "UOM"
+        },
+        {
+            "fieldname": "column_break_2",
+            "fieldtype": "Column Break"
+        },
+        {
+            "default": "0",
+            "fieldname": "qty_received",
+            "fieldtype": "Float",
+            "in_list_view": 1,
+            "label": "Qty Received",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "is_received",
+            "fieldtype": "Check",
+            "label": "Is Received",
+            "read_only": 1
+        }
+    ],
+    "index_web_pages_for_search": 1,
+    "istable": 1,
+    "links": [],
+    "modified": "2026-02-07 14:30:00.000000",
+    "modified_by": "Administrator",
+    "module": "Delivery Challan",
+    "name": "Delivery Challan Item",
+    "owner": "Administrator",
+    "permissions": [],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": [],
+    "track_changes": 1
 }

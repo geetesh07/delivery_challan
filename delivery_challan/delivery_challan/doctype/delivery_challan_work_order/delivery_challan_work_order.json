@@ -1,0 +1,52 @@
+{
+ "actions": [],
+ "creation": "2026-02-27 17:15:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "work_order",
+  "production_item",
+  "qty"
+ ],
+ "fields": [
+  {
+   "fieldname": "work_order",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Work Order",
+   "options": "Work Order",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "work_order.production_item",
+   "fieldname": "production_item",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item To Manufacture",
+   "options": "Item",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "work_order.qty",
+   "fieldname": "qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Qty To Manufacture",
+   "read_only": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-02-27 17:15:00.000000",
+ "modified_by": "Administrator",
+ "module": "Delivery Challan",
+ "name": "Delivery Challan Work Order",
+ "owner": "Administrator",
+ "permissions": [],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

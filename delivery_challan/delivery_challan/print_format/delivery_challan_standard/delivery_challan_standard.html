@@ -50,8 +50,7 @@
             {%- for item in doc.items -%}
             <tr>
                 <td>
-                    <b>{{ item.item_name }}</b><br>
-                    <small>{{ item.item_code }}</small><br>
+                    <b>{{ item.item_code }}</b><br>
                     {% if item.description %}
                     <div class="text-muted small">{{ item.description }}</div>
                     {% endif %}
