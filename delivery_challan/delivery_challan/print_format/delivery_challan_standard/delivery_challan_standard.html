@@ -178,14 +178,14 @@ add_letterhead, print_value -%}
         <thead>
             <tr>
                 <th class="text-center" style="width: 4%;">#</th>
+                <th style="width: 14%;">{{ _("Work Order") }}</th>
                 <th style="width: 14%;">{{ _("RM Code") }}</th>
-                <th style="width: 12%;">{{ _("Work Order") }}</th>
-                <th style="width: 12%;">{{ _("Product Code") }}</th>
+                <th class="text-right" style="width: 10%;">{{ _("RM Qty") }}</th>
+                <th style="width: 14%;">{{ _("Product Code") }}</th>
+                <th class="text-right" style="width: 10%;">{{ _("Product Qty") }}</th>
                 <th style="width: 12%;">{{ _("Operation") }}</th>
-                <th class="text-right" style="width: 9%;">{{ _("Product Qty") }}</th>
-                <th class="text-right" style="width: 9%;">{{ _("RM Qty") }}</th>
                 <th style="width: 7%;">{{ _("UOM") }}</th>
-                <th class="text-right" style="width: 9%;">{{ _("Received") }}</th>
+                <th class="text-right" style="width: 10%;">{{ _("Received") }}</th>
             </tr>
         </thead>
         <tbody>
@@ -196,15 +196,15 @@ add_letterhead, print_value -%}
             {%- set _ = total_received.update({"value": total_received.value + (item.qty_received or 0)}) -%}
             <tr>
                 <td class="text-center">{{ loop.index }}</td>
+                <td>{{ item.work_order or "-" }}</td>
                 <td><b>{{ item.item_code }}</b>
                     {% if item.description %}<br><span style="font-size: 10px; color: #666;">{{ item.description |
                         truncate(60) }}</span>{% endif %}
                 </td>
-                <td>{{ item.work_order or "-" }}</td>
-                <td>{{ item.production_item or "-" }}</td>
-                <td>{{ item.operation or "-" }}</td>
-                <td class="text-right">{{ item.production_qty or "-" }}</td>
                 <td class="text-right">{{ item.qty }}</td>
+                <td>{{ item.production_item or "-" }}</td>
+                <td class="text-right">{{ item.production_qty or "-" }}</td>
+                <td>{{ item.operation or "-" }}</td>
                 <td>{{ item.uom }}</td>
                 <td class="text-right">{{ item.qty_received or 0 }}</td>
             </tr>
@@ -212,9 +212,9 @@ add_letterhead, print_value -%}
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="6" class="text-right">{{ _("Totals") }}</td>
+                <td colspan="3" class="text-right">{{ _("Totals") }}</td>
                 <td class="text-right">{{ total_qty.value }}</td>
-                <td></td>
+                <td colspan="4"></td>
                 <td class="text-right">{{ total_received.value }}</td>
             </tr>
         </tfoot>

@@ -68,8 +68,7 @@ class DeliveryChallan(Document):
 	# ─── Operation Detection ───────────────────────────────────────────
 
 	def detect_pending_operations(self):
-		"""For each item with a Work Order, detect the next pending operation and store it."""
-		# Group items by work order to avoid duplicate lookups
+		"""For each item with a Work Order, detect the next pending SUBCONTRACTED operation."""
 		wo_cache = {}
 		
 		for item in self.items:
@@ -77,13 +76,14 @@ class DeliveryChallan(Document):
 				continue
 			
 			if item.work_order not in wo_cache:
-				wo_cache[item.work_order] = self._get_next_pending_operation(item.work_order)
+				wo_cache[item.work_order] = self._get_next_subcontracted_operation(item.work_order)
 			
 			op_info = wo_cache[item.work_order]
 			if op_info:
 				nts.db.set_value("Delivery Challan Item", item.name, {
 					"operation": op_info.get("operation"),
 					"operation_idx": op_info.get("idx"),
+					"follows_prod_qty": op_info.get("follows_prod_qty") or 0,
 					"operation_completed": 0
 				})
 		
@@ -92,12 +92,18 @@ class DeliveryChallan(Document):
 			if ops_found:
 				op_names = [o["operation"] for o in ops_found]
 				nts.msgprint(
-					_("Linked to pending operation(s): {0}").format(", ".join(op_names)),
+					_("Linked to subcontracted operation(s): {0}").format(", ".join(op_names)),
 					indicator="blue"
 				)
 
-	def _get_next_pending_operation(self, work_order_name):
-		"""Find the next pending (incomplete) operation in a Work Order."""
+	def _is_subcontracted_workstation(self, workstation_name):
+		"""Check if a workstation name contains 'subcontract' (case-insensitive)."""
+		if not workstation_name:
+			return False
+		return "subcontract" in workstation_name.lower()
+
+	def _get_next_subcontracted_operation(self, work_order_name):
+		"""Find the next pending operation that has a subcontracted workstation."""
 		try:
 			wo = nts.get_doc("Work Order", work_order_name)
 			if wo.docstatus != 1:
@@ -108,9 +114,25 @@ class DeliveryChallan(Document):
 				return None
 			
 			for idx, op_row in enumerate(operations):
-				completed_qty = flt(op_row.get("completed_qty") or 0)
+				# Only consider operations with subcontracted workstation
+				workstation = op_row.get("workstation") or ""
+				if not self._is_subcontracted_workstation(workstation):
+					continue
 				
-				# Determine required qty for this operation
+				completed_qty = flt(op_row.get("completed_qty") or 0)
+				# Read fresh from DB
+				try:
+					if op_row.get("name"):
+						vals = nts.db.get_value(
+							"Work Order Operation", op_row.get("name"),
+							["completed_qty"], as_dict=True
+						)
+						if vals:
+							completed_qty = flt(vals.get("completed_qty") or 0)
+				except Exception:
+					pass
+				
+				# Determine required qty
 				required_qty = flt(
 					op_row.get("operation_qty") or 
 					op_row.get("for_quantity") or 
@@ -120,13 +142,12 @@ class DeliveryChallan(Document):
 				if required_qty <= 0:
 					required_qty = flt(wo.get("qty") or wo.get("production_qty") or 0)
 				
-				# Check if operation has pending work
+				# Calculate pending
 				if idx == 0:
 					pending = max(0.0, required_qty - completed_qty)
 				else:
 					prev_op = operations[idx - 1]
 					prev_completed = flt(prev_op.get("completed_qty") or 0)
-					# Read fresh from DB in case it was updated
 					try:
 						if prev_op.get("name"):
 							vals = nts.db.get_value(
@@ -140,11 +161,18 @@ class DeliveryChallan(Document):
 					pending = max(0.0, prev_completed - completed_qty)
 				
 				if pending > 0:
+					# Fetch follows_production_qty from Operation master
+					follows_prod_qty = 0
+					operation_name = op_row.get("operation") or ""
+					if operation_name:
+						follows_prod_qty = nts.db.get_value("Operation", operation_name, "follows_production_qty") or 0
+					
 					return {
-						"operation": op_row.get("operation") or "",
+						"operation": operation_name,
 						"idx": idx,
 						"pending_qty": pending,
-						"workstation": op_row.get("workstation") or ""
+						"workstation": workstation,
+						"follows_prod_qty": follows_prod_qty
 					}
 			
 			return None
@@ -166,9 +194,27 @@ class DeliveryChallan(Document):
 		stock_entry.remarks = _("Material sent via Delivery Challan {0}").format(self.name)
 		
 		for item in self.items:
+			# If follows_prod_qty is checked, the DC 'qty' represents the Product Qty.
+			# But we must transfer the equivalent RM Qty.
+			# RM required per product = (production_qty / qty) if follows_prod_qty is false
+			# if follows_prod_qty is true, item.qty is product qty, so RM to transfer = (actual RM per product) * item.qty
+			
+			transfer_qty = flt(item.qty)
+			if item.follows_prod_qty and flt(item.production_qty) > 0:
+				# We need to find the actual RM qty needed from the WO
+				try:
+					wo = nts.get_doc("Work Order", item.work_order)
+					for wo_item in wo.required_items:
+						if wo_item.item_code == item.item_code:
+							rm_per_product = flt(wo_item.required_qty) / flt(wo.qty or wo.production_qty or 1)
+							transfer_qty = flt(item.qty) * rm_per_product
+							break
+				except Exception:
+					pass
+			
 			stock_entry.append("items", {
 				"item_code": item.item_code,
-				"qty": item.qty,
+				"qty": transfer_qty,
 				"uom": item.uom,
 				"s_warehouse": self.from_warehouse,
 				"t_warehouse": self.to_warehouse
@@ -209,7 +255,11 @@ class DeliveryChallan(Document):
 
 	@nts.whitelist()
 	def receive_items(self, received_items):
-		"""Receive specific quantities of items (supports partial). Also completes linked operations."""
+		"""Receive specific quantities of items (supports partial).
+		
+		Stock entry transfers RM back at RM qty.
+		Operation reporting uses the received qty.
+		"""
 		if self.status not in ["Sent", "Partially Received"]:
 			nts.throw(_("Can only receive items when status is Sent or Partially Received"))
 		
@@ -239,7 +289,7 @@ class DeliveryChallan(Document):
 		if not items_to_receive:
 			nts.throw(_("Please enter quantities to receive"))
 		
-		# Create return stock entry
+		# Create return stock entry (always uses RM qty — material transfer back)
 		stock_entry = nts.new_doc("Stock Entry")
 		stock_entry.stock_entry_type = "Material Transfer"
 		stock_entry.purpose = "Material Transfer"
@@ -251,9 +301,25 @@ class DeliveryChallan(Document):
 		
 		for entry in items_to_receive:
 			row = entry["row"]
+			recv_qty = entry["recv_qty"]
+			
+			# Logic matching outgoing stock entry:
+			# If follows_prod_qty is true, recv_qty is the Product Qty. Convert to RM qty for stock.
+			transfer_qty = recv_qty
+			if row.follows_prod_qty and flt(row.production_qty) > 0:
+				try:
+					wo = nts.get_doc("Work Order", row.work_order)
+					for wo_item in wo.required_items:
+						if wo_item.item_code == row.item_code:
+							rm_per_product = flt(wo_item.required_qty) / flt(wo.qty or wo.production_qty or 1)
+							transfer_qty = recv_qty * rm_per_product
+							break
+				except Exception:
+					pass
+					
 			stock_entry.append("items", {
 				"item_code": row.item_code,
-				"qty": entry["recv_qty"],
+				"qty": transfer_qty,
 				"uom": row.uom,
 				"s_warehouse": self.to_warehouse,
 				"t_warehouse": self.from_warehouse
@@ -295,7 +361,7 @@ class DeliveryChallan(Document):
 			})
 			nts.msgprint(_("All items received. Days outside: {0}").format(days))
 			
-			# Complete linked operations for all items
+			# Complete linked subcontracted operations
 			self._complete_linked_operations()
 		else:
 			self.db_set("status", "Partially Received")
@@ -308,8 +374,8 @@ class DeliveryChallan(Document):
 	# ─── Operation Completion ──────────────────────────────────────────
 
 	def _complete_linked_operations(self):
-		"""When all items are received, complete the linked WO operations via reporting app API."""
-		# Group by work order to complete each operation once
+		"""When all items are received, complete linked subcontracted WO operations."""
+		# Group by (work_order, operation_idx) to complete each once
 		wo_ops = {}
 		for item in self.items:
 			if not item.work_order or not item.operation or item.operation_completed:
@@ -321,6 +387,7 @@ class DeliveryChallan(Document):
 					"work_order": item.work_order,
 					"operation": item.operation,
 					"operation_idx": item.operation_idx,
+					"production_qty": flt(item.production_qty),
 					"item_names": []
 				}
 			wo_ops[key]["item_names"].append(item.name)
@@ -328,7 +395,6 @@ class DeliveryChallan(Document):
 		if not wo_ops:
 			return
 		
-		# Get the current user as employee for reporting
 		employee_number = self._get_employee_number()
 		
 		for key, op_info in wo_ops.items():
@@ -337,7 +403,8 @@ class DeliveryChallan(Document):
 					work_order=op_info["work_order"],
 					operation=op_info["operation"],
 					operation_idx=op_info["operation_idx"],
-					employee_number=employee_number
+					employee_number=employee_number,
+					production_qty=op_info["production_qty"]
 				)
 				
 				# Mark items as operation completed
@@ -359,35 +426,100 @@ class DeliveryChallan(Document):
 					indicator="orange"
 				)
 
-	def _report_operation_complete(self, work_order, operation, operation_idx, employee_number):
-		"""Call the reporting app's report_operation API to complete the operation."""
+	def _report_operation_complete(self, work_order, operation, operation_idx, employee_number, production_qty):
+		"""Call the reporting app's report_operation API with the actual pending qty."""
 		try:
 			from reporting.reporting.api.work_order_ops import report_operation
-			
-			result = report_operation(
-				work_order=work_order,
-				op_index=operation_idx,
-				operation_name=operation,
-				employee_number=employee_number,
-				produced_qty=0,  # Will be calculated by the API based on pending
-				process_loss=0,
-				posting_datetime=now_datetime(),
-				rejection_reason=None,
-				_auto_complete=True
-			)
-			
-			if not result or not result.get("ok"):
-				msg = result.get("message", "Unknown error") if result else "No response"
-				nts.throw(_("Operation reporting failed: {0}").format(msg))
-			
-			return result
 		except ImportError:
-			# Reporting app not installed — skip gracefully
 			nts.msgprint(
-				_("Reporting app not available. Operation '{0}' not auto-completed. Please complete it manually.").format(operation),
+				_("Reporting app not available. Operation '{0}' not auto-completed.").format(operation),
 				indicator="yellow"
 			)
 			return None
+		
+		# Calculate the actual pending qty for this operation
+		pending_qty = self._get_operation_pending_qty(work_order, operation_idx)
+		
+		if pending_qty <= 0:
+			# Already completed, just mark our items
+			return {"ok": True, "message": "Operation already completed"}
+		
+		# Use production_qty or pending_qty — whichever is available and valid
+		produced_qty = pending_qty
+		if production_qty and production_qty > 0:
+			# Cap at pending to avoid over-production
+			produced_qty = min(flt(production_qty), pending_qty)
+		
+		result = report_operation(
+			work_order=work_order,
+			op_index=operation_idx,
+			operation_name=operation,
+			employee_number=employee_number,
+			produced_qty=produced_qty,
+			process_loss=0,
+			posting_datetime=now_datetime(),
+			rejection_reason=None,
+			_auto_complete=True
+		)
+		
+		if not result or not result.get("ok"):
+			msg = result.get("message", "Unknown error") if result else "No response"
+			nts.throw(_("Operation reporting failed: {0}").format(msg))
+		
+		return result
+
+	def _get_operation_pending_qty(self, work_order_name, operation_idx):
+		"""Calculate the actual pending qty for a specific operation."""
+		try:
+			wo = nts.get_doc("Work Order", work_order_name)
+			operations = wo.get("operations") or []
+			idx = int(operation_idx)
+			
+			if idx < 0 or idx >= len(operations):
+				return 0
+			
+			op_row = operations[idx]
+			
+			completed_qty = flt(op_row.get("completed_qty") or 0)
+			try:
+				if op_row.get("name"):
+					vals = nts.db.get_value(
+						"Work Order Operation", op_row.get("name"),
+						["completed_qty"], as_dict=True
+					)
+					if vals:
+						completed_qty = flt(vals.get("completed_qty") or 0)
+			except Exception:
+				pass
+			
+			required_qty = flt(
+				op_row.get("operation_qty") or
+				op_row.get("for_quantity") or
+				op_row.get("qty") or
+				op_row.get("required_qty") or 0
+			)
+			if required_qty <= 0:
+				required_qty = flt(wo.get("qty") or wo.get("production_qty") or 0)
+			
+			if idx == 0:
+				return max(0.0, required_qty - completed_qty)
+			else:
+				prev_op = operations[idx - 1]
+				prev_completed = flt(prev_op.get("completed_qty") or 0)
+				try:
+					if prev_op.get("name"):
+						vals = nts.db.get_value(
+							"Work Order Operation", prev_op.get("name"),
+							["completed_qty"], as_dict=True
+						)
+						if vals:
+							prev_completed = flt(vals.get("completed_qty") or 0)
+				except Exception:
+					pass
+				return max(0.0, prev_completed - completed_qty)
+		except Exception:
+			nts.log_error(traceback.format_exc(), "DC get pending qty")
+			return 0
 
 	def _get_employee_number(self):
 		"""Get the employee number for the current user."""
@@ -409,3 +541,9 @@ def receive_items(name, received_items):
 	"""Whitelist method for partial receiving"""
 	doc = nts.get_doc("Delivery Challan", name)
 	return doc.receive_items(received_items)
+
+@nts.whitelist()
+def get_next_subcontracted_operation(work_order_name):
+	"""Whitelist method for JS to fetch next pending subcontracted operation details."""
+	doc = nts.new_doc("Delivery Challan")
+	return doc._get_next_subcontracted_operation(work_order_name)
