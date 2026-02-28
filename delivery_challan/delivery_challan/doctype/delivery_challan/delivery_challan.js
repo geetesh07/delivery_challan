@@ -90,6 +90,16 @@ nts.ui.form.on("Delivery Challan", {
                 }
             };
         });
+
+        frm.set_query("work_order", "items", function () {
+            return {
+                filters: {
+                    "docstatus": 1,
+                    "status": "In Progress"
+                },
+                order_by: "creation desc"
+            };
+        });
     }
 });
 
@@ -219,18 +229,18 @@ nts.ui.form.on("Delivery Challan Item", {
                         let wo_doc = r.message;
                         let required_items = wo_doc.required_items;
                         let production_qty = wo_doc.qty || wo_doc.production_qty || 1;
-                        
+
                         // Check next pending operation for this WO to see if follows_prod_qty
                         nts.call({
                             method: "delivery_challan.delivery_challan.doctype.delivery_challan.delivery_challan.get_next_subcontracted_operation",
                             args: { work_order_name: row.work_order },
-                            callback: function(op_res) {
+                            callback: function (op_res) {
                                 let use_prod_qty = false;
                                 let operation_pending_qty = production_qty;
                                 let linked_op = null;
                                 let linked_op_idx = 0;
                                 let follows_prod_qty = 0;
-                                
+
                                 if (op_res.message) {
                                     linked_op = op_res.message.operation;
                                     linked_op_idx = op_res.message.idx;
@@ -242,22 +252,22 @@ nts.ui.form.on("Delivery Challan Item", {
                                 }
 
                                 if (required_items.length > 0) {
-                                    let set_row_values = function(target_row, r_item) {
+                                    let set_row_values = function (target_row, r_item) {
                                         nts.model.set_value(target_row.doctype, target_row.name, "item_code", r_item.item_code);
-                                        
+
                                         // Set RM Qty OR Product Qty
                                         let final_qty = r_item.required_qty;
                                         if (use_prod_qty) {
                                             final_qty = operation_pending_qty;
                                         }
                                         nts.model.set_value(target_row.doctype, target_row.name, "qty", final_qty);
-                                        
+
                                         if (linked_op) {
                                             nts.model.set_value(target_row.doctype, target_row.name, "operation", linked_op);
                                             nts.model.set_value(target_row.doctype, target_row.name, "operation_idx", linked_op_idx);
                                             nts.model.set_value(target_row.doctype, target_row.name, "follows_prod_qty", follows_prod_qty);
                                         }
-                                        
+
                                         nts.call({
                                             method: "nts.client.get_value",
                                             args: {
@@ -281,9 +291,9 @@ nts.ui.form.on("Delivery Challan Item", {
                                         new_row.work_order = row.work_order;
                                         set_row_values(new_row, required_items[i]);
                                     }
-                                    
+
                                     frm.refresh_field("items");
-                                    
+
                                     let msg = "Fetched " + required_items.length + " BOM items.";
                                     if (use_prod_qty) msg += " Using Product Qty (" + operation_pending_qty + ") due to operation '" + linked_op + "'.";
                                     nts.show_alert({ message: msg, indicator: "green" });
