@@ -299,9 +299,20 @@ class DeliveryChallan(Document):
 		stock_entry.posting_date = today()
 		stock_entry.remarks = _("Material received back via Delivery Challan {0}").format(self.name)
 		
+		# We will fetch WIP warehouse for Work Order items
+		wo_wip_cache = {}
+
 		for entry in items_to_receive:
 			row = entry["row"]
 			recv_qty = entry["recv_qty"]
+			
+			# Determine target warehouse
+			target_warehouse = self.from_warehouse
+			if row.work_order:
+				if row.work_order not in wo_wip_cache:
+					wip_wh = nts.db.get_value("Work Order", row.work_order, "wip_warehouse")
+					wo_wip_cache[row.work_order] = wip_wh or self.from_warehouse
+				target_warehouse = wo_wip_cache[row.work_order]
 			
 			# Logic matching outgoing stock entry:
 			# If follows_prod_qty is true, recv_qty is the Product Qty. Convert to RM qty for stock.
@@ -322,7 +333,7 @@ class DeliveryChallan(Document):
 				"qty": transfer_qty,
 				"uom": row.uom,
 				"s_warehouse": self.to_warehouse,
-				"t_warehouse": self.from_warehouse
+				"t_warehouse": target_warehouse
 			})
 		
 		stock_entry.insert()

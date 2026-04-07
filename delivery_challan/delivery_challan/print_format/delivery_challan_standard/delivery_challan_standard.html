@@ -4,7 +4,7 @@ add_letterhead, print_value -%}
 <style>
     .dc-print {
         font-family: Arial, sans-serif;
-        font-size: 12px;
+        font-size: 15px;
     }
 
     .dc-print h2 {
@@ -34,8 +34,9 @@ add_letterhead, print_value -%}
     }
 
     .dc-meta td {
-        padding: 3px 8px;
+        padding: 4px 8px;
         vertical-align: top;
+        font-size: 15px;
     }
 
     .dc-meta .label-col {
@@ -53,16 +54,16 @@ add_letterhead, print_value -%}
     .dc-items th {
         background-color: #f5f5f5;
         border: 1px solid #ccc;
-        padding: 6px 8px;
+        padding: 8px;
         text-align: left;
         font-weight: bold;
-        font-size: 11px;
+        font-size: 15px;
     }
 
     .dc-items td {
         border: 1px solid #ccc;
-        padding: 5px 8px;
-        font-size: 11px;
+        padding: 6px 8px;
+        font-size: 15px;
     }
 
     .dc-items .text-right {
@@ -111,19 +112,32 @@ add_letterhead, print_value -%}
 
     .dc-terms {
         margin-top: 20px;
-        padding: 8px;
+        padding: 10px;
         border: 1px solid #ddd;
         background: #fafafa;
-        font-size: 10px;
+        font-size: 12px;
     }
 </style>
 
 <div class="dc-print">
-    {{ add_header(0, 1, doc, letter_head, no_letterhead) }}
 
-    <div class="dc-header text-center">
-        <h2>{{ _("DELIVERY CHALLAN") }}</h2>
-        <h4>{{ doc.name }}</h4>
+    <!-- Header block -->
+    <div class="print-heading" style="margin-bottom: 16px;">
+        <div
+            style="display: flex; border: 1px solid #000; font-size: 18px; font-weight: bold; text-align: center; height: 80px;">
+            <div
+                style="flex: 0 0 20%; border-right: 1px solid #000; display: flex; align-items: center; justify-content: center;">
+                <img src="https://erp.punecarbide.com/files/1697622178892%20-%20Edited.png"
+                    style="max-height: 80%; max-width: 80%; object-fit: contain;">
+            </div>
+            <div
+                style="flex: 0 0 40%; border-right: 1px solid #000; display: flex; align-items: center; justify-content: center;">
+                {{ _("Delivery Challan") }}
+            </div>
+            <div style="flex: 0 0 40%; display: flex; align-items: center; justify-content: center;">
+                {{ doc.name }}
+            </div>
+        </div>
     </div>
 
     <div class="dc-meta">
@@ -136,16 +150,13 @@ add_letterhead, print_value -%}
                             <td><b>{{ doc.supplier_name or doc.supplier }}</b></td>
                         </tr>
                         <tr>
-                            <td class="label-col">{{ _("Supplier ID") }}</td>
-                            <td>{{ doc.supplier }}</td>
-                        </tr>
-                        <tr>
                             <td class="label-col">{{ _("From Warehouse") }}</td>
                             <td>{{ doc.from_warehouse }}</td>
                         </tr>
                         <tr>
-                            <td class="label-col">{{ _("To Warehouse") }}</td>
-                            <td>{{ doc.to_warehouse }}</td>
+                            <td class="label-col">{{ _("Expected Return") }}</td>
+                            <td>{{ nts.utils.formatdate(doc.expected_return_date) if doc.expected_return_date else
+                                "-" }}</td>
                         </tr>
                     </table>
                 </td>
@@ -156,17 +167,12 @@ add_letterhead, print_value -%}
                             <td>{{ nts.utils.formatdate(doc.posting_date) }}</td>
                         </tr>
                         <tr>
-                            <td class="label-col">{{ _("Expected Return") }}</td>
-                            <td>{{ nts.utils.formatdate(doc.expected_return_date) if doc.expected_return_date else
-                                "-" }}</td>
+                            <td class="label-col">{{ _("To Warehouse") }}</td>
+                            <td>{{ doc.to_warehouse }}</td>
                         </tr>
                         <tr>
                             <td class="label-col">{{ _("Sender") }}</td>
-                            <td>{{ doc.sender }}</td>
-                        </tr>
-                        <tr>
-                            <td class="label-col">{{ _("Status") }}</td>
-                            <td><b>{{ doc.status }}</b></td>
+                            <td>{{ doc.company }}</td>
                         </tr>
                     </table>
                 </td>
@@ -180,20 +186,15 @@ add_letterhead, print_value -%}
                 <th class="text-center" style="width: 4%;">#</th>
                 <th style="width: 14%;">{{ _("Work Order") }}</th>
                 <th style="width: 14%;">{{ _("RM Code") }}</th>
-                <th class="text-right" style="width: 10%;">{{ _("RM Qty") }}</th>
+                <th class="text-right" style="width: 7%;">{{ _("RM Qty") }}</th>
                 <th style="width: 14%;">{{ _("Product Code") }}</th>
-                <th class="text-right" style="width: 10%;">{{ _("Product Qty") }}</th>
-                <th style="width: 12%;">{{ _("Operation") }}</th>
-                <th style="width: 7%;">{{ _("UOM") }}</th>
-                <th class="text-right" style="width: 10%;">{{ _("Received") }}</th>
+                <th class="text-right" style="width: 7%;">{{ _("Product Qty") }}</th>
             </tr>
         </thead>
         <tbody>
             {%- set total_qty = {"value": 0} -%}
-            {%- set total_received = {"value": 0} -%}
             {%- for item in doc.items -%}
             {%- set _ = total_qty.update({"value": total_qty.value + (item.qty or 0)}) -%}
-            {%- set _ = total_received.update({"value": total_received.value + (item.qty_received or 0)}) -%}
             <tr>
                 <td class="text-center">{{ loop.index }}</td>
                 <td>{{ item.work_order or "-" }}</td>
@@ -204,9 +205,6 @@ add_letterhead, print_value -%}
                 <td class="text-right">{{ item.qty }}</td>
                 <td>{{ item.production_item or "-" }}</td>
                 <td class="text-right">{{ item.production_qty or "-" }}</td>
-                <td>{{ item.operation or "-" }}</td>
-                <td>{{ item.uom }}</td>
-                <td class="text-right">{{ item.qty_received or 0 }}</td>
             </tr>
             {%- endfor -%}
         </tbody>
@@ -214,25 +212,10 @@ add_letterhead, print_value -%}
             <tr>
                 <td colspan="3" class="text-right">{{ _("Totals") }}</td>
                 <td class="text-right">{{ total_qty.value }}</td>
-                <td colspan="4"></td>
-                <td class="text-right">{{ total_received.value }}</td>
+                <td colspan="2"></td>
             </tr>
         </tfoot>
     </table>
-
-    {% if doc.status in ["Sent", "Partially Received", "Received"] %}
-    <div class="dc-status">
-        <table>
-            <tr>
-                <td><b>{{ _("Sent Date") }}:</b> {{ nts.utils.format_datetime(doc.sent_date) if doc.sent_date else
-                    "-" }}</td>
-                <td><b>{{ _("Received Date") }}:</b> {{ nts.utils.format_datetime(doc.received_date) if
-                    doc.received_date else "-" }}</td>
-                <td><b>{{ _("Days Outside") }}:</b> {{ doc.days_outside or "-" }}</td>
-            </tr>
-        </table>
-    </div>
-    {% endif %}
 
     {% if doc.remarks %}
     <div style="margin-top: 15px;">
